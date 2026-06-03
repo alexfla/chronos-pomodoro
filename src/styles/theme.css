@@ -55,5 +55,15 @@
     --link-color: #0b8a60;
     --link-hover: #10b981;
     
+    --toasty-color-ligth: var(--text-default);
+    --toasty-color-dark: var(--text-default);
+    --toasty-color-info: var(--info);
+    --toasty-color-success: var(--success);
+    --toasty-color-warning: var(--warning);
+    --toasty-color-error: var(--error);
+    --toasty-text-color-dark: #e6e9f0;
+    --toasty-text-color-light: #0a0f1a;
+     --toasty-color-progress-light: var(--primary);
+     --toasty-color-progress-dark: var(--primary);
 
 }

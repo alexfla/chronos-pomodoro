@@ -1,6 +1,12 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
+import { taskReducer } from "./taskReduce";
 import { initialTaskState } from "./initialTaskState";
+import { TimerWorkerManager } from "../../workes/TimerWorkerManager";
+import { TaskActionTypes } from "./taskActions";
 import { TaskContext } from "./TaskContext";
+import { loadBeep } from "../../utils/loadBeep";
+import type { TaskStateModel } from "../../models/TaskStateModel";
+
 
 
 type TaskContextProviderProps = {
@@ -8,34 +14,74 @@ type TaskContextProviderProps = {
 };
 
 export function TaskContextProvider({ children }: TaskContextProviderProps) {
-    const [state, setState] = useState(initialTaskState);
 
-    type ActionType = {
-        type: string,
-        payload?: number;
-    }
-    const [myState, dispatch] = useReducer((state, action: ActionType) => {
-        console.log(state, action);
+    const [state, dispatch] = useReducer(taskReducer, initialTaskState, () => {
+        const storegeState = localStorage.getItem('state');
+       
+        if (storegeState === null) return initialTaskState;
 
-        switch (action.type) {
-          case 'INCREMENT':
-            if (!action.payload) return state;
-            return { ...state, secondsRemaining: state.secondsRemaining + (action.payload) };
+         const parsedStorageState = JSON.parse(storegeState) as TaskStateModel;
+
+            return {
+                ...parsedStorageState,
+                activeTask: null,
+                secondsRemaining: 0,
+                formattedSecondsRemaining: '00:00',
+            
+            };
+                
+       
+    });
+
+    const playBeepRef = useRef<ReturnType<typeof loadBeep> | null>(null);              
+                
+    const worker = TimerWorkerManager.getInstance();
+
+    worker.onmessage(e => {
+        const contDownSeconds = e.data;
+                
+        if (contDownSeconds <= 0) {
+            
+            if(playBeepRef.current) {
+                playBeepRef.current();
+                playBeepRef.current = null;
+            }
+           dispatch({ 
+            type: TaskActionTypes.COMPLETE_TASK, });
+            worker.terminate();
+        } else {
+            dispatch({ 
+                type: TaskActionTypes.CONT_DOWN, payload: { secondsRemaining: contDownSeconds }, });
         }
-        return state;
-     },  
-     {
-        secondsRemaining: 0,
-     }
 
-);
+    });
 
-   // useEffect(() =>{
-     //   console.log(state)
-   // }, [state])
-    return  (<TaskContext.Provider
-         value={ { state, setState } }>
-           <h1>o { JSON.stringify(myState) }</h1>
-           <button onClick={() => dispatch({ type: 'INCREMENT', payload: 10 })}>Increment</button>
-            </TaskContext.Provider>);
-};
+
+
+    useEffect(() => {
+        localStorage.setItem('state', JSON.stringify(state));
+
+        if(!state.activeTask) {
+            //console.log('Worker terminado por falta de active task');
+            worker.terminate();
+        }
+
+        document.title = `${state.formattedSecondsRemaining} - Chromos Pomodoro`;
+
+        worker.postMessage(state);
+    }, [worker, state]);
+
+    useEffect(() => {
+        if (state.activeTask && playBeepRef.current === null) {
+            playBeepRef.current = loadBeep(); 
+          
+        }   else { playBeepRef.current = null; }
+    }, [state.activeTask]);
+
+    return (
+        <TaskContext.Provider value={{ state, dispatch }}>
+            {children}
+        </TaskContext.Provider>
+    );
+
+}
